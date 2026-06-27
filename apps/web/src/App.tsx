@@ -4,7 +4,6 @@ import type { AgencyInfo, ChatThread, Offer, OfferInput } from '@agency/shared';
 const apiUrl = import.meta.env.VITE_API_URL ?? '';
 
 type Panel = 'client' | 'admin';
-
 type SeenMap = Record<string, string>;
 
 const createClientId = () =>
@@ -381,8 +380,8 @@ function App() {
     switchPanel('admin');
   };
 
-  const sendClientMessage = async (content?: string) => {
-    const text = String(content ?? clientChatInput).trim();
+  const sendClientMessage = async () => {
+    const text = clientChatInput.trim();
     if (!selectedOfferId || !text) {
       return;
     }
@@ -463,85 +462,100 @@ function App() {
   }, [adminSeenByThread, adminThreads]);
 
   return (
-    <main className="agency-shell">
-      <header className="topbar">
-        <nav className="navbar">
-          <div className="brand-area">
-            <span className="brand-dot" />
+    <main className="full-shell">
+      <header className="main-nav-wrap">
+        <div className="main-nav">
+          <div className="logo-box">
+            <span className="logo-dot" />
             <strong>Atlas Agency</strong>
           </div>
-          <div className="menu-links">
+          <div className="main-links">
             <a href="#home">Home</a>
-            <a href="#services">Services</a>
+            <a href="#solutions">Solutions</a>
             <a href="#offers">Offers</a>
-            <a href="#contact">Contact</a>
+            <a href="#messenger">Messenger</a>
           </div>
-          <div className="menu-actions">
+          <div className="main-actions">
             <button
               type="button"
-              className={panel === 'client' ? 'pill active' : 'pill'}
+              className={panel === 'client' ? 'nav-pill active' : 'nav-pill'}
               onClick={() => switchPanel('client')}
             >
               Client
             </button>
             <button
               type="button"
-              className={panel === 'admin' ? 'pill active' : 'pill'}
+              className={panel === 'admin' ? 'nav-pill active' : 'nav-pill'}
               onClick={() => switchPanel('admin')}
             >
               Admin
             </button>
           </div>
-        </nav>
+        </div>
       </header>
 
-      <section className="hero" id="home">
-        <div>
-          <p className="eyebrow">Travel Management Studio</p>
+      <section className="hero-grid" id="home">
+        <div className="hero-left">
+          <p className="hero-kicker">Modern Travel Booking Operations</p>
           <h1>{agency?.name ?? 'Atlas Escape Agency'}</h1>
-          <p className="tagline">{agency?.tagline}</p>
-          <p className="about">{agency?.about}</p>
+          <p className="hero-tag">{agency?.tagline}</p>
+          <p className="hero-text">{agency?.about}</p>
+          <div className="hero-cta-row">
+            <button type="button" onClick={() => document.getElementById('offers')?.scrollIntoView()}>
+              Explore Offers
+            </button>
+            <button type="button" className="ghost" onClick={() => setClientChatOpen(true)}>
+              Contact Advisor
+            </button>
+          </div>
         </div>
-        <div className="hero-card" id="contact">
-          <h3>Need direct help?</h3>
-          <p>Our advisors respond quickly with package details, flight options, hotel upgrades, and quote adjustments.</p>
-          <button type="button" onClick={() => setClientChatOpen(true)}>
-            Start Conversation
-          </button>
+        <div className="hero-right">
+          <article>
+            <h4>Vacation Offers</h4>
+            <p>All-inclusive and custom curated experiences by destination and budget.</p>
+          </article>
+          <article>
+            <h4>Flight Tickets</h4>
+            <p>Flexible flight support from route planning to schedule optimization.</p>
+          </article>
+          <article>
+            <h4>Hotel Bookings</h4>
+            <p>Premium to smart-stay options tailored to your trip style.</p>
+          </article>
         </div>
       </section>
 
-      <section className="services" id="services">
+      <section className="info-grid" id="solutions">
         <article>
-          <h3>Vacation Packages</h3>
-          <p>Curated destination offers with flexible durations and transparent pricing.</p>
+          <h3>Dedicated Agency Experts</h3>
+          <p>Every request is handled by a real advisor with direct context of your travel intent.</p>
         </article>
         <article>
-          <h3>Flight Tickets</h3>
-          <p>Support for smart route options, baggage preferences, and schedule matching.</p>
+          <h3>Fast Multi-service Quotes</h3>
+          <p>Packages, flights, and hotels coordinated under one conversation flow.</p>
         </article>
         <article>
-          <h3>Hotel Bookings</h3>
-          <p>Tailored accommodation recommendations based on comfort and budget needs.</p>
+          <h3>Messenger-grade Support</h3>
+          <p>Threaded chat with read/unread awareness for better response management.</p>
         </article>
       </section>
 
       {error && <p className="error-banner">{error}</p>}
 
       {panel === 'client' && (
-        <section className="client-area" id="offers">
-          <article className="offers-panel">
-            <div className="panel-head">
-              <h2>Find Your Best Offer</h2>
-              <p>Filter by destination state and search by package keywords.</p>
+        <section className="client-layout" id="offers">
+          <article className="catalog-panel">
+            <div className="section-head">
+              <h2>Find Offers Faster</h2>
+              <p>Use smart filters and search to get the right package before chatting.</p>
             </div>
             <div className="filters">
               <label>
-                Your name
+                Name
                 <input
                   value={clientName}
                   onChange={(event) => setClientName(event.target.value)}
-                  placeholder="Your name"
+                  placeholder="Your full name"
                 />
               </label>
               <label>
@@ -559,11 +573,10 @@ function App() {
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Beach, mountain, city"
+                  placeholder="Beach, city, mountain"
                 />
               </label>
             </div>
-
             <div className="offer-grid">
               {filteredOffers.map((offer) => (
                 <article
@@ -579,12 +592,18 @@ function App() {
                     <span>{offer.state}</span>
                     <span>{offer.durationDays} days</span>
                   </div>
-                  <div className="offer-actions">
-                    <button type="button" onClick={() => setSelectedOfferId(offer.id)}>
-                      Open Messenger
+                  <div className="btn-row">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOfferId(offer.id);
+                        setClientChatOpen(true);
+                      }}
+                    >
+                      Chat This Offer
                     </button>
                     <button type="button" className="ghost" onClick={() => startEdit(offer)}>
-                      Manage in Admin
+                      Open Admin
                     </button>
                   </div>
                 </article>
@@ -592,28 +611,48 @@ function App() {
             </div>
           </article>
 
-          <aside className="messenger-launcher">
-            <button
-              type="button"
-              className="messenger-toggle"
-              onClick={() => setClientChatOpen((value) => !value)}
-            >
-              {clientChatOpen ? 'Hide Messenger' : 'Open Messenger'}
-              {clientUnreadCount > 0 && <span className="badge">{clientUnreadCount}</span>}
-            </button>
+          <article className="selection-panel">
+            <h3>Selected Offer</h3>
+            {selectedOffer ? (
+              <>
+                <h4>{selectedOffer.title}</h4>
+                <p>{selectedOffer.description}</p>
+                <ul>
+                  <li>State: {selectedOffer.state}</li>
+                  <li>Duration: {selectedOffer.durationDays} days</li>
+                  <li>Price: ${selectedOffer.price}</li>
+                </ul>
+                <button type="button" onClick={() => setClientChatOpen(true)}>
+                  Continue in Messenger
+                </button>
+              </>
+            ) : (
+              <p>Select an offer to preview details and begin chat.</p>
+            )}
+          </article>
+
+          <article className="messenger-panel" id="messenger">
+            <div className="messenger-header">
+              <div>
+                <strong>Agency Messenger</strong>
+                <p>
+                  {selectedOffer
+                    ? `Now discussing: ${selectedOffer.title}`
+                    : 'Select an offer to start chatting'}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setClientChatOpen((value) => !value)}
+              >
+                {clientChatOpen ? 'Minimize' : 'Open'}
+                {clientUnreadCount > 0 && <span className="badge">{clientUnreadCount}</span>}
+              </button>
+            </div>
 
             {clientChatOpen && (
-              <div className="messenger-window">
-                <div className="messenger-head">
-                  <div>
-                    <strong>Agency Messenger</strong>
-                    <p>
-                      {selectedOffer
-                        ? `Offer: ${selectedOffer.title}`
-                        : 'Select an offer card to begin'}
-                    </p>
-                  </div>
-                </div>
+              <>
                 <div className="messages">
                   {(clientThread?.messages ?? []).map((message) => (
                     <div
@@ -622,7 +661,7 @@ function App() {
                     >
                       <p>{message.text}</p>
                       <small>
-                        {message.sender === 'admin' ? 'Agency' : clientName || 'You'} •{' '}
+                        {message.sender === 'admin' ? 'Advisor' : clientName || 'You'} •{' '}
                         {new Date(message.createdAt).toLocaleTimeString()}
                       </small>
                     </div>
@@ -632,7 +671,7 @@ function App() {
                   <input
                     value={clientChatInput}
                     onChange={(event) => setClientChatInput(event.target.value)}
-                    placeholder={selectedOfferId ? 'Type a message...' : 'Select an offer first'}
+                    placeholder={selectedOfferId ? 'Type your message...' : 'Select an offer first'}
                     disabled={!selectedOfferId}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
@@ -645,9 +684,9 @@ function App() {
                     Send
                   </button>
                 </div>
-              </div>
+              </>
             )}
-          </aside>
+          </article>
         </section>
       )}
 
@@ -655,14 +694,14 @@ function App() {
         <section className="admin-login-wrap">
           <article className="admin-login-card">
             <h2>Admin Login</h2>
-            <p>Enter your key to manage offers and client messages.</p>
+            <p>Enter secure admin key to manage offers and messenger threads.</p>
             <input
               type="password"
               value={adminKeyInput}
               onChange={(event) => setAdminKeyInput(event.target.value)}
               placeholder="ADMIN_DASHBOARD_KEY"
             />
-            <div className="offer-actions">
+            <div className="btn-row">
               <button type="button" onClick={() => void loginAdmin()} disabled={busy}>
                 Sign In
               </button>
@@ -675,12 +714,12 @@ function App() {
       )}
 
       {panel === 'admin' && adminLoggedIn && (
-        <section className="admin-area">
+        <section className="admin-layout">
           <article className="admin-offers">
-            <div className="panel-head split">
+            <div className="section-head split">
               <div>
                 <h2>{editingOfferId ? 'Update Offer' : 'Create Offer'}</h2>
-                <p>Manage offers for vacation packages, flights, and hotels.</p>
+                <p>Offer management for vacation, flights, and hotels.</p>
               </div>
               <button type="button" className="ghost" onClick={logoutAdmin}>
                 Logout
@@ -729,7 +768,7 @@ function App() {
                   }
                 />
               </div>
-              <div className="offer-actions">
+              <div className="btn-row">
                 <button type="button" onClick={() => void saveOffer()} disabled={busy}>
                   {editingOfferId ? 'Update' : 'Create'}
                 </button>
@@ -741,7 +780,7 @@ function App() {
               </div>
             </div>
 
-            <h3>Offer Inventory</h3>
+            <h3>Inventory</h3>
             <div className="offer-grid compact">
               {offers.map((offer) => (
                 <article className="offer-card compact" key={offer.id}>
@@ -749,7 +788,7 @@ function App() {
                     <h4>{offer.title}</h4>
                     <span>{offer.state}</span>
                   </div>
-                  <div className="offer-actions">
+                  <div className="btn-row">
                     <button type="button" onClick={() => startEdit(offer)}>
                       Edit
                     </button>
@@ -764,7 +803,7 @@ function App() {
 
           <article className="admin-messenger">
             <div className="thread-column">
-              <h3>Chats</h3>
+              <h3>Messages</h3>
               <div className="thread-list">
                 {adminThreads.map((thread) => (
                   <button
@@ -786,7 +825,7 @@ function App() {
             </div>
             <div className="conversation-column">
               <div className="conversation-head">
-                <strong>{activeAdminThread?.clientName ?? 'Select a conversation'}</strong>
+                <strong>{activeAdminThread?.clientName ?? 'Select chat'}</strong>
                 <span>{activeAdminThread?.offerTitle ?? ''}</span>
               </div>
               <div className="messages">

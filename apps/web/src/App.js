@@ -1,4 +1,4 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useEffect, useMemo, useState } from 'react';
 const apiUrl = import.meta.env.VITE_API_URL ?? '';
 const createClientId = () => `client-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
@@ -27,6 +27,22 @@ const initialOfferForm = {
     price: 400
 };
 const initialPanel = window.location.pathname.startsWith('/admin') ? 'admin' : 'client';
+const readSeenMap = (key) => {
+    try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) {
+            return {};
+        }
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    }
+    catch {
+        return {};
+    }
+};
+const saveSeenMap = (key, value) => {
+    window.localStorage.setItem(key, JSON.stringify(value));
+};
 async function requestJson(path, init) {
     const response = await fetch(`${apiUrl}${path}`, {
         headers: {
@@ -49,11 +65,14 @@ function App() {
     const [agency, setAgency] = useState(null);
     const [offers, setOffers] = useState([]);
     const [stateFilter, setStateFilter] = useState('All States');
+    const [searchQuery, setSearchQuery] = useState('');
     const [selectedOfferId, setSelectedOfferId] = useState('');
     const [clientId] = useState(() => getClientId());
     const [clientName, setClientName] = useState(() => getClientName());
     const [clientChatInput, setClientChatInput] = useState('');
     const [clientThread, setClientThread] = useState(null);
+    const [clientChatOpen, setClientChatOpen] = useState(false);
+    const [clientSeenByThread, setClientSeenByThread] = useState(() => readSeenMap('agency-client-seen-map'));
     const [adminKeyInput, setAdminKeyInput] = useState(() => window.localStorage.getItem('agency-admin-key') ?? '');
     const [adminKey, setAdminKey] = useState(() => window.localStorage.getItem('agency-admin-key') ?? '');
     const [adminLoggedIn, setAdminLoggedIn] = useState(false);
@@ -62,6 +81,7 @@ function App() {
     const [adminThreads, setAdminThreads] = useState([]);
     const [activeAdminThreadId, setActiveAdminThreadId] = useState('');
     const [adminReply, setAdminReply] = useState('');
+    const [adminSeenByThread, setAdminSeenByThread] = useState(() => readSeenMap('agency-admin-seen-map'));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
     const selectedOffer = useMemo(() => offers.find((offer) => offer.id === selectedOfferId) ?? null, [offers, selectedOfferId]);
@@ -71,11 +91,15 @@ function App() {
         return ['All States', ...values];
     }, [offers]);
     const filteredOffers = useMemo(() => {
-        if (stateFilter === 'All States') {
-            return offers;
+        const byState = stateFilter === 'All States' ? offers : offers.filter((offer) => offer.state === stateFilter);
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) {
+            return byState;
         }
-        return offers.filter((offer) => offer.state === stateFilter);
-    }, [offers, stateFilter]);
+        return byState.filter((offer) => offer.title.toLowerCase().includes(query) ||
+            offer.description.toLowerCase().includes(query) ||
+            offer.state.toLowerCase().includes(query));
+    }, [offers, stateFilter, searchQuery]);
     const adminRequest = (path, init) => requestJson(path, {
         ...init,
         headers: {
@@ -86,6 +110,9 @@ function App() {
     const refreshOffers = async () => {
         const loaded = await requestJson('/api/offers');
         setOffers(loaded);
+        if (!selectedOfferId && loaded[0]) {
+            setSelectedOfferId(loaded[0].id);
+        }
     };
     const refreshAdminThreads = async () => {
         if (!adminLoggedIn) {
@@ -159,7 +186,7 @@ function App() {
             }
         };
         void poll();
-        const timer = window.setInterval(() => void poll(), 2000);
+        const timer = window.setInterval(() => void poll(), 2200);
         return () => window.clearInterval(timer);
     }, [selectedOfferId, clientId]);
     useEffect(() => {
@@ -170,6 +197,28 @@ function App() {
         const timer = window.setInterval(() => void refreshAdminThreads(), 2500);
         return () => window.clearInterval(timer);
     }, [adminLoggedIn, panel, activeAdminThreadId]);
+    useEffect(() => {
+        if (!clientThread || !clientChatOpen) {
+            return;
+        }
+        const updated = {
+            ...clientSeenByThread,
+            [clientThread.id]: new Date().toISOString()
+        };
+        setClientSeenByThread(updated);
+        saveSeenMap('agency-client-seen-map', updated);
+    }, [clientThread, clientChatOpen]);
+    useEffect(() => {
+        if (!activeAdminThread) {
+            return;
+        }
+        const updated = {
+            ...adminSeenByThread,
+            [activeAdminThread.id]: new Date().toISOString()
+        };
+        setAdminSeenByThread(updated);
+        saveSeenMap('agency-admin-seen-map', updated);
+    }, [activeAdminThreadId]);
     const resetOfferForm = () => {
         setOfferForm(initialOfferForm);
         setEditingOfferId(null);
@@ -264,7 +313,8 @@ function App() {
         switchPanel('admin');
     };
     const sendClientMessage = async () => {
-        if (!selectedOfferId || !clientChatInput.trim()) {
+        const text = clientChatInput.trim();
+        if (!selectedOfferId || !text) {
             return;
         }
         const safeName = clientName.trim() || 'Guest Traveler';
@@ -278,11 +328,12 @@ function App() {
                     clientId,
                     clientName: safeName,
                     sender: 'client',
-                    text: clientChatInput
+                    text
                 })
             });
             setClientThread(thread);
             setClientChatInput('');
+            setClientChatOpen(true);
         }
         catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to send message');
@@ -312,14 +363,42 @@ function App() {
             setError(err instanceof Error ? err.message : 'Failed to send admin reply');
         }
     };
-    return (_jsxs("main", { className: "site-shell", children: [_jsxs("header", { className: "hero-wrap", children: [_jsxs("nav", { className: "top-nav", children: [_jsx("p", { className: "brand-mark", children: "Atlas Agency" }), _jsxs("div", { className: "nav-actions", children: [_jsx("button", { type: "button", className: panel === 'client' ? 'pill active' : 'pill', onClick: () => switchPanel('client'), children: "Explore Trips" }), _jsx("button", { type: "button", className: panel === 'admin' ? 'pill active' : 'pill', onClick: () => switchPanel('admin'), children: "Admin" })] })] }), _jsxs("div", { className: "hero-content", children: [_jsxs("div", { children: [_jsx("p", { className: "hero-eyebrow", children: "Boutique Travel Operations" }), _jsx("h1", { children: agency?.name ?? 'Atlas Escape Agency' }), _jsx("p", { className: "hero-tagline", children: agency?.tagline }), _jsx("p", { className: "hero-about", children: agency?.about })] }), _jsxs("aside", { className: "hero-card", children: [_jsx("h3", { children: "Trusted By Travelers" }), _jsxs("ul", { children: [_jsx("li", { children: "Personal itinerary guidance in every offer" }), _jsx("li", { children: "Live chat with agency staff per vacation card" }), _jsx("li", { children: "Transparent pricing with state-based filters" })] })] })] })] }), error && _jsx("p", { className: "error-banner", children: error }), panel === 'client' && (_jsxs("section", { className: "layout-grid", children: [_jsxs("article", { className: "glass-panel", children: [_jsxs("div", { className: "section-head", children: [_jsx("h2", { children: agency?.heroCta ?? 'Find your next state getaway' }), _jsx("p", { children: "Filter, compare, and chat with the agency before choosing your package." })] }), _jsxs("div", { className: "field-grid", children: [_jsxs("div", { children: [_jsx("label", { htmlFor: "clientName", children: "Your name" }), _jsx("input", { id: "clientName", value: clientName, onChange: (event) => setClientName(event.target.value), placeholder: "Type your name" })] }), _jsxs("div", { children: [_jsx("label", { htmlFor: "stateFilter", children: "State filter" }), _jsx("select", { id: "stateFilter", value: stateFilter, onChange: (event) => setStateFilter(event.target.value), children: states.map((stateName) => (_jsx("option", { value: stateName, children: stateName }, stateName))) })] })] }), _jsx("div", { className: "offer-grid", children: filteredOffers.map((offer) => (_jsxs("article", { className: "offer-tile", children: [_jsx("h3", { children: offer.title }), _jsx("p", { children: offer.description }), _jsxs("div", { className: "chips", children: [_jsx("span", { children: offer.state }), _jsxs("span", { children: [offer.durationDays, " days"] }), _jsxs("span", { children: ["$", offer.price] })] }), _jsxs("div", { className: "row-actions", children: [_jsx("button", { type: "button", onClick: () => setSelectedOfferId(offer.id), children: "Chat For This Offer" }), _jsx("button", { type: "button", className: "ghost", onClick: () => startEdit(offer), children: "Open In Admin" })] })] }, offer.id))) })] }), _jsxs("article", { className: "glass-panel chat-panel", children: [_jsxs("div", { className: "section-head", children: [_jsx("h2", { children: "Live Chat" }), _jsx("p", { children: selectedOffer
-                                            ? `Conversation about ${selectedOffer.title}`
-                                            : 'Select an offer card to start chatting.' })] }), _jsx("div", { className: "chat-log", children: (clientThread?.messages ?? []).map((message) => (_jsxs("div", { className: message.sender === 'admin' ? 'bubble admin' : 'bubble client', children: [_jsx("p", { children: message.text }), _jsxs("small", { children: [message.sender, " \u2022 ", new Date(message.createdAt).toLocaleTimeString()] })] }, message.id))) }), _jsxs("div", { className: "chat-compose", children: [_jsx("input", { value: clientChatInput, onChange: (event) => setClientChatInput(event.target.value), placeholder: "Write a message to the agency", disabled: !selectedOfferId }), _jsx("button", { type: "button", onClick: () => void sendClientMessage(), disabled: !selectedOfferId, children: "Send" })] })] })] })), panel === 'admin' && !adminLoggedIn && (_jsx("section", { className: "admin-login-wrap", children: _jsxs("article", { className: "glass-panel admin-login-card", children: [_jsx("h2", { children: "Admin Login" }), _jsx("p", { children: "Access is restricted. Enter your admin key to manage offers and client chats." }), _jsx("input", { type: "password", value: adminKeyInput, onChange: (event) => setAdminKeyInput(event.target.value), placeholder: "Enter ADMIN_DASHBOARD_KEY" }), _jsxs("div", { className: "row-actions", children: [_jsx("button", { type: "button", onClick: () => void loginAdmin(), disabled: busy, children: "Sign In" }), _jsx("button", { type: "button", className: "ghost", onClick: () => switchPanel('client'), children: "Back to Landing" })] })] }) })), panel === 'admin' && adminLoggedIn && (_jsxs("section", { className: "layout-grid admin-layout", children: [_jsxs("article", { className: "glass-panel", children: [_jsxs("div", { className: "section-head split", children: [_jsxs("div", { children: [_jsx("h2", { children: editingOfferId ? 'Update Offer' : 'Create Offer' }), _jsx("p", { children: "Keep your catalog fresh and aligned with client demand." })] }), _jsx("button", { type: "button", className: "ghost", onClick: logoutAdmin, children: "Log out" })] }), _jsxs("div", { className: "form-grid", children: [_jsx("input", { placeholder: "Offer title", value: offerForm.title, onChange: (event) => setOfferForm({ ...offerForm, title: event.target.value }) }), _jsx("input", { placeholder: "State", value: offerForm.state, onChange: (event) => setOfferForm({ ...offerForm, state: event.target.value }) }), _jsx("textarea", { placeholder: "Offer description", value: offerForm.description, onChange: (event) => setOfferForm({ ...offerForm, description: event.target.value }) }), _jsxs("div", { className: "field-grid two", children: [_jsx("input", { type: "number", min: 1, placeholder: "Duration days", value: offerForm.durationDays, onChange: (event) => setOfferForm({
+    const clientUnreadCount = useMemo(() => {
+        if (!clientThread) {
+            return 0;
+        }
+        const seenAt = clientSeenByThread[clientThread.id] ?? '';
+        return clientThread.messages.filter((message) => message.sender === 'admin' && message.createdAt > seenAt).length;
+    }, [clientSeenByThread, clientThread]);
+    const adminUnreadByThread = useMemo(() => {
+        const map = {};
+        for (const thread of adminThreads) {
+            const seenAt = adminSeenByThread[thread.id] ?? '';
+            map[thread.id] = thread.messages.filter((message) => message.sender === 'client' && message.createdAt > seenAt).length;
+        }
+        return map;
+    }, [adminSeenByThread, adminThreads]);
+    return (_jsxs("main", { className: "full-shell", children: [_jsx("header", { className: "main-nav-wrap", children: _jsxs("div", { className: "main-nav", children: [_jsxs("div", { className: "logo-box", children: [_jsx("span", { className: "logo-dot" }), _jsx("strong", { children: "Atlas Agency" })] }), _jsxs("div", { className: "main-links", children: [_jsx("a", { href: "#home", children: "Home" }), _jsx("a", { href: "#solutions", children: "Solutions" }), _jsx("a", { href: "#offers", children: "Offers" }), _jsx("a", { href: "#messenger", children: "Messenger" })] }), _jsxs("div", { className: "main-actions", children: [_jsx("button", { type: "button", className: panel === 'client' ? 'nav-pill active' : 'nav-pill', onClick: () => switchPanel('client'), children: "Client" }), _jsx("button", { type: "button", className: panel === 'admin' ? 'nav-pill active' : 'nav-pill', onClick: () => switchPanel('admin'), children: "Admin" })] })] }) }), _jsxs("section", { className: "hero-grid", id: "home", children: [_jsxs("div", { className: "hero-left", children: [_jsx("p", { className: "hero-kicker", children: "Modern Travel Booking Operations" }), _jsx("h1", { children: agency?.name ?? 'Atlas Escape Agency' }), _jsx("p", { className: "hero-tag", children: agency?.tagline }), _jsx("p", { className: "hero-text", children: agency?.about }), _jsxs("div", { className: "hero-cta-row", children: [_jsx("button", { type: "button", onClick: () => document.getElementById('offers')?.scrollIntoView(), children: "Explore Offers" }), _jsx("button", { type: "button", className: "ghost", onClick: () => setClientChatOpen(true), children: "Contact Advisor" })] })] }), _jsxs("div", { className: "hero-right", children: [_jsxs("article", { children: [_jsx("h4", { children: "Vacation Offers" }), _jsx("p", { children: "All-inclusive and custom curated experiences by destination and budget." })] }), _jsxs("article", { children: [_jsx("h4", { children: "Flight Tickets" }), _jsx("p", { children: "Flexible flight support from route planning to schedule optimization." })] }), _jsxs("article", { children: [_jsx("h4", { children: "Hotel Bookings" }), _jsx("p", { children: "Premium to smart-stay options tailored to your trip style." })] })] })] }), _jsxs("section", { className: "info-grid", id: "solutions", children: [_jsxs("article", { children: [_jsx("h3", { children: "Dedicated Agency Experts" }), _jsx("p", { children: "Every request is handled by a real advisor with direct context of your travel intent." })] }), _jsxs("article", { children: [_jsx("h3", { children: "Fast Multi-service Quotes" }), _jsx("p", { children: "Packages, flights, and hotels coordinated under one conversation flow." })] }), _jsxs("article", { children: [_jsx("h3", { children: "Messenger-grade Support" }), _jsx("p", { children: "Threaded chat with read/unread awareness for better response management." })] })] }), error && _jsx("p", { className: "error-banner", children: error }), panel === 'client' && (_jsxs("section", { className: "client-layout", id: "offers", children: [_jsxs("article", { className: "catalog-panel", children: [_jsxs("div", { className: "section-head", children: [_jsx("h2", { children: "Find Offers Faster" }), _jsx("p", { children: "Use smart filters and search to get the right package before chatting." })] }), _jsxs("div", { className: "filters", children: [_jsxs("label", { children: ["Name", _jsx("input", { value: clientName, onChange: (event) => setClientName(event.target.value), placeholder: "Your full name" })] }), _jsxs("label", { children: ["State", _jsx("select", { value: stateFilter, onChange: (event) => setStateFilter(event.target.value), children: states.map((stateName) => (_jsx("option", { value: stateName, children: stateName }, stateName))) })] }), _jsxs("label", { children: ["Search", _jsx("input", { value: searchQuery, onChange: (event) => setSearchQuery(event.target.value), placeholder: "Beach, city, mountain" })] })] }), _jsx("div", { className: "offer-grid", children: filteredOffers.map((offer) => (_jsxs("article", { className: offer.id === selectedOfferId ? 'offer-card selected' : 'offer-card', children: [_jsxs("div", { className: "offer-top", children: [_jsx("h3", { children: offer.title }), _jsxs("span", { children: ["$", offer.price] })] }), _jsx("p", { children: offer.description }), _jsxs("div", { className: "chips", children: [_jsx("span", { children: offer.state }), _jsxs("span", { children: [offer.durationDays, " days"] })] }), _jsxs("div", { className: "btn-row", children: [_jsx("button", { type: "button", onClick: () => {
+                                                        setSelectedOfferId(offer.id);
+                                                        setClientChatOpen(true);
+                                                    }, children: "Chat This Offer" }), _jsx("button", { type: "button", className: "ghost", onClick: () => startEdit(offer), children: "Open Admin" })] })] }, offer.id))) })] }), _jsxs("article", { className: "selection-panel", children: [_jsx("h3", { children: "Selected Offer" }), selectedOffer ? (_jsxs(_Fragment, { children: [_jsx("h4", { children: selectedOffer.title }), _jsx("p", { children: selectedOffer.description }), _jsxs("ul", { children: [_jsxs("li", { children: ["State: ", selectedOffer.state] }), _jsxs("li", { children: ["Duration: ", selectedOffer.durationDays, " days"] }), _jsxs("li", { children: ["Price: $", selectedOffer.price] })] }), _jsx("button", { type: "button", onClick: () => setClientChatOpen(true), children: "Continue in Messenger" })] })) : (_jsx("p", { children: "Select an offer to preview details and begin chat." }))] }), _jsxs("article", { className: "messenger-panel", id: "messenger", children: [_jsxs("div", { className: "messenger-header", children: [_jsxs("div", { children: [_jsx("strong", { children: "Agency Messenger" }), _jsx("p", { children: selectedOffer
+                                                    ? `Now discussing: ${selectedOffer.title}`
+                                                    : 'Select an offer to start chatting' })] }), _jsxs("button", { type: "button", className: "ghost", onClick: () => setClientChatOpen((value) => !value), children: [clientChatOpen ? 'Minimize' : 'Open', clientUnreadCount > 0 && _jsx("span", { className: "badge", children: clientUnreadCount })] })] }), clientChatOpen && (_jsxs(_Fragment, { children: [_jsx("div", { className: "messages", children: (clientThread?.messages ?? []).map((message) => (_jsxs("div", { className: message.sender === 'admin' ? 'message admin' : 'message client', children: [_jsx("p", { children: message.text }), _jsxs("small", { children: [message.sender === 'admin' ? 'Advisor' : clientName || 'You', " \u2022", ' ', new Date(message.createdAt).toLocaleTimeString()] })] }, message.id))) }), _jsxs("div", { className: "compose-row", children: [_jsx("input", { value: clientChatInput, onChange: (event) => setClientChatInput(event.target.value), placeholder: selectedOfferId ? 'Type your message...' : 'Select an offer first', disabled: !selectedOfferId, onKeyDown: (event) => {
+                                                    if (event.key === 'Enter') {
+                                                        event.preventDefault();
+                                                        void sendClientMessage();
+                                                    }
+                                                } }), _jsx("button", { type: "button", onClick: () => void sendClientMessage(), disabled: !selectedOfferId, children: "Send" })] })] }))] })] })), panel === 'admin' && !adminLoggedIn && (_jsx("section", { className: "admin-login-wrap", children: _jsxs("article", { className: "admin-login-card", children: [_jsx("h2", { children: "Admin Login" }), _jsx("p", { children: "Enter secure admin key to manage offers and messenger threads." }), _jsx("input", { type: "password", value: adminKeyInput, onChange: (event) => setAdminKeyInput(event.target.value), placeholder: "ADMIN_DASHBOARD_KEY" }), _jsxs("div", { className: "btn-row", children: [_jsx("button", { type: "button", onClick: () => void loginAdmin(), disabled: busy, children: "Sign In" }), _jsx("button", { type: "button", className: "ghost", onClick: () => switchPanel('client'), children: "Back" })] })] }) })), panel === 'admin' && adminLoggedIn && (_jsxs("section", { className: "admin-layout", children: [_jsxs("article", { className: "admin-offers", children: [_jsxs("div", { className: "section-head split", children: [_jsxs("div", { children: [_jsx("h2", { children: editingOfferId ? 'Update Offer' : 'Create Offer' }), _jsx("p", { children: "Offer management for vacation, flights, and hotels." })] }), _jsx("button", { type: "button", className: "ghost", onClick: logoutAdmin, children: "Logout" })] }), _jsxs("div", { className: "admin-form", children: [_jsx("input", { placeholder: "Offer title", value: offerForm.title, onChange: (event) => setOfferForm({ ...offerForm, title: event.target.value }) }), _jsx("input", { placeholder: "State", value: offerForm.state, onChange: (event) => setOfferForm({ ...offerForm, state: event.target.value }) }), _jsx("textarea", { placeholder: "Offer description", value: offerForm.description, onChange: (event) => setOfferForm({ ...offerForm, description: event.target.value }) }), _jsxs("div", { className: "admin-inline", children: [_jsx("input", { type: "number", min: 1, placeholder: "Duration days", value: offerForm.durationDays, onChange: (event) => setOfferForm({
                                                     ...offerForm,
                                                     durationDays: Number(event.target.value)
                                                 }) }), _jsx("input", { type: "number", min: 1, placeholder: "Price", value: offerForm.price, onChange: (event) => setOfferForm({
                                                     ...offerForm,
                                                     price: Number(event.target.value)
-                                                }) })] }), _jsxs("div", { className: "row-actions", children: [_jsx("button", { type: "button", onClick: () => void saveOffer(), disabled: busy, children: editingOfferId ? 'Update Offer' : 'Create Offer' }), editingOfferId && (_jsx("button", { type: "button", className: "ghost", onClick: resetOfferForm, children: "Cancel" }))] })] }), _jsx("h3", { children: "Offer Inventory" }), _jsx("div", { className: "offer-grid compact", children: offers.map((offer) => (_jsxs("article", { className: "offer-tile", children: [_jsx("h4", { children: offer.title }), _jsx("p", { children: offer.state }), _jsxs("div", { className: "row-actions", children: [_jsx("button", { type: "button", onClick: () => startEdit(offer), children: "Edit" }), _jsx("button", { type: "button", className: "danger", onClick: () => void deleteOffer(offer.id), children: "Delete" })] })] }, offer.id))) })] }), _jsxs("article", { className: "glass-panel chat-panel", children: [_jsxs("div", { className: "section-head", children: [_jsx("h2", { children: "Client Threads" }), _jsx("p", { children: "Each client+offer creates a dedicated conversation channel." })] }), _jsx("div", { className: "thread-list", children: adminThreads.map((thread) => (_jsxs("button", { type: "button", className: thread.id === activeAdminThreadId ? 'thread active' : 'thread', onClick: () => setActiveAdminThreadId(thread.id), children: [_jsx("strong", { children: thread.clientName }), _jsx("span", { children: thread.offerTitle })] }, thread.id))) }), _jsx("div", { className: "chat-log", children: (activeAdminThread?.messages ?? []).map((message) => (_jsxs("div", { className: message.sender === 'admin' ? 'bubble admin' : 'bubble client', children: [_jsx("p", { children: message.text }), _jsxs("small", { children: [message.sender, " \u2022 ", new Date(message.createdAt).toLocaleTimeString()] })] }, message.id))) }), _jsxs("div", { className: "chat-compose", children: [_jsx("input", { value: adminReply, onChange: (event) => setAdminReply(event.target.value), placeholder: "Reply to selected client", disabled: !activeAdminThread }), _jsx("button", { type: "button", onClick: () => void sendAdminReply(), disabled: !activeAdminThread, children: "Reply" })] })] })] }))] }));
+                                                }) })] }), _jsxs("div", { className: "btn-row", children: [_jsx("button", { type: "button", onClick: () => void saveOffer(), disabled: busy, children: editingOfferId ? 'Update' : 'Create' }), editingOfferId && (_jsx("button", { type: "button", className: "ghost", onClick: resetOfferForm, children: "Cancel" }))] })] }), _jsx("h3", { children: "Inventory" }), _jsx("div", { className: "offer-grid compact", children: offers.map((offer) => (_jsxs("article", { className: "offer-card compact", children: [_jsxs("div", { className: "offer-top", children: [_jsx("h4", { children: offer.title }), _jsx("span", { children: offer.state })] }), _jsxs("div", { className: "btn-row", children: [_jsx("button", { type: "button", onClick: () => startEdit(offer), children: "Edit" }), _jsx("button", { type: "button", className: "danger", onClick: () => void deleteOffer(offer.id), children: "Delete" })] })] }, offer.id))) })] }), _jsxs("article", { className: "admin-messenger", children: [_jsxs("div", { className: "thread-column", children: [_jsx("h3", { children: "Messages" }), _jsx("div", { className: "thread-list", children: adminThreads.map((thread) => (_jsxs("button", { type: "button", className: thread.id === activeAdminThreadId ? 'thread active' : 'thread', onClick: () => setActiveAdminThreadId(thread.id), children: [_jsxs("div", { children: [_jsx("strong", { children: thread.clientName }), _jsx("span", { children: thread.offerTitle })] }), adminUnreadByThread[thread.id] > 0 && (_jsx("span", { className: "badge", children: adminUnreadByThread[thread.id] }))] }, thread.id))) })] }), _jsxs("div", { className: "conversation-column", children: [_jsxs("div", { className: "conversation-head", children: [_jsx("strong", { children: activeAdminThread?.clientName ?? 'Select chat' }), _jsx("span", { children: activeAdminThread?.offerTitle ?? '' })] }), _jsx("div", { className: "messages", children: (activeAdminThread?.messages ?? []).map((message) => (_jsxs("div", { className: message.sender === 'admin' ? 'message admin' : 'message client', children: [_jsx("p", { children: message.text }), _jsxs("small", { children: [message.sender, " \u2022 ", new Date(message.createdAt).toLocaleTimeString()] })] }, message.id))) }), _jsxs("div", { className: "compose-row", children: [_jsx("input", { value: adminReply, onChange: (event) => setAdminReply(event.target.value), placeholder: "Reply to selected chat", disabled: !activeAdminThread, onKeyDown: (event) => {
+                                                    if (event.key === 'Enter') {
+                                                        event.preventDefault();
+                                                        void sendAdminReply();
+                                                    }
+                                                } }), _jsx("button", { type: "button", onClick: () => void sendAdminReply(), disabled: !activeAdminThread, children: "Send" })] })] })] })] }))] }));
 }
 export default App;
