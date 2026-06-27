@@ -26,6 +26,9 @@ const toOfferInput = (form: OfferInput): OfferInput => ({
   title: form.title.trim(),
   description: form.description.trim(),
   state: form.state.trim(),
+  resortName: form.resortName.trim(),
+  highlights: form.highlights.trim(),
+  imageUrl: form.imageUrl.trim(),
   durationDays: Number(form.durationDays),
   price: Number(form.price)
 });
@@ -34,9 +37,15 @@ const initialOfferForm: OfferInput = {
   title: '',
   description: '',
   state: '',
+  resortName: '',
+  highlights: '',
+  imageUrl: '',
   durationDays: 4,
   price: 400
 };
+
+const fallbackOfferImage =
+  'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80';
 
 const initialPanel: Panel = window.location.pathname.startsWith('/admin') ? 'admin' : 'client';
 
@@ -140,7 +149,9 @@ function App() {
       (offer) =>
         offer.title.toLowerCase().includes(query) ||
         offer.description.toLowerCase().includes(query) ||
-        offer.state.toLowerCase().includes(query)
+        offer.state.toLowerCase().includes(query) ||
+        offer.resortName.toLowerCase().includes(query) ||
+        offer.highlights.toLowerCase().includes(query)
     );
   }, [offers, stateFilter, searchQuery]);
 
@@ -374,6 +385,9 @@ function App() {
       title: offer.title,
       description: offer.description,
       state: offer.state,
+      resortName: offer.resortName,
+      highlights: offer.highlights,
+      imageUrl: offer.imageUrl,
       durationDays: offer.durationDays,
       price: offer.price
     });
@@ -582,12 +596,33 @@ function App() {
                 <article
                   key={offer.id}
                   className={offer.id === selectedOfferId ? 'offer-card selected' : 'offer-card'}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setSelectedOfferId(offer.id);
+                    setClientChatOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedOfferId(offer.id);
+                      setClientChatOpen(true);
+                    }
+                  }}
                 >
+                  <img
+                    className="offer-image"
+                    src={offer.imageUrl || fallbackOfferImage}
+                    alt={`${offer.resortName} in ${offer.state}`}
+                    loading="lazy"
+                  />
                   <div className="offer-top">
                     <h3>{offer.title}</h3>
                     <span>${offer.price}</span>
                   </div>
+                  <p className="offer-subtitle">{offer.resortName}</p>
                   <p>{offer.description}</p>
+                  <p className="offer-highlights">{offer.highlights}</p>
                   <div className="chips">
                     <span>{offer.state}</span>
                     <span>{offer.durationDays} days</span>
@@ -595,14 +630,22 @@ function App() {
                   <div className="btn-row">
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={(event) => {
+                        event.stopPropagation();
                         setSelectedOfferId(offer.id);
                         setClientChatOpen(true);
                       }}
                     >
                       Chat This Offer
                     </button>
-                    <button type="button" className="ghost" onClick={() => startEdit(offer)}>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        startEdit(offer);
+                      }}
+                    >
                       Open Admin
                     </button>
                   </div>
@@ -615,8 +658,15 @@ function App() {
             <h3>Selected Offer</h3>
             {selectedOffer ? (
               <>
+                <img
+                  className="selected-offer-image"
+                  src={selectedOffer.imageUrl || fallbackOfferImage}
+                  alt={`${selectedOffer.resortName} resort preview`}
+                />
                 <h4>{selectedOffer.title}</h4>
+                <p className="offer-subtitle">{selectedOffer.resortName}</p>
                 <p>{selectedOffer.description}</p>
+                <p className="offer-highlights">{selectedOffer.highlights}</p>
                 <ul>
                   <li>State: {selectedOffer.state}</li>
                   <li>Duration: {selectedOffer.durationDays} days</li>
@@ -737,10 +787,25 @@ function App() {
                 value={offerForm.state}
                 onChange={(event) => setOfferForm({ ...offerForm, state: event.target.value })}
               />
+              <input
+                placeholder="Resort / Hotel name"
+                value={offerForm.resortName}
+                onChange={(event) => setOfferForm({ ...offerForm, resortName: event.target.value })}
+              />
+              <input
+                placeholder="Image URL"
+                value={offerForm.imageUrl}
+                onChange={(event) => setOfferForm({ ...offerForm, imageUrl: event.target.value })}
+              />
               <textarea
                 placeholder="Offer description"
                 value={offerForm.description}
                 onChange={(event) => setOfferForm({ ...offerForm, description: event.target.value })}
+              />
+              <textarea
+                placeholder="Highlights (e.g. Spa, Ocean view, Airport transfer)"
+                value={offerForm.highlights}
+                onChange={(event) => setOfferForm({ ...offerForm, highlights: event.target.value })}
               />
               <div className="admin-inline">
                 <input
@@ -784,10 +849,17 @@ function App() {
             <div className="offer-grid compact">
               {offers.map((offer) => (
                 <article className="offer-card compact" key={offer.id}>
+                  <img
+                    className="offer-image compact"
+                    src={offer.imageUrl || fallbackOfferImage}
+                    alt={`${offer.resortName} thumbnail`}
+                    loading="lazy"
+                  />
                   <div className="offer-top">
                     <h4>{offer.title}</h4>
                     <span>{offer.state}</span>
                   </div>
+                  <p className="offer-subtitle">{offer.resortName}</p>
                   <div className="btn-row">
                     <button type="button" onClick={() => startEdit(offer)}>
                       Edit

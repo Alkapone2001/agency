@@ -10,6 +10,9 @@ export interface Offer {
   title: string;
   description: string;
   state: string;
+  resortName: string;
+  highlights: string;
+  imageUrl: string;
   durationDays: number;
   price: number;
   createdAt: string;
@@ -20,6 +23,9 @@ export interface OfferInput {
   title: string;
   description: string;
   state: string;
+  resortName: string;
+  highlights: string;
+  imageUrl: string;
   durationDays: number;
   price: number;
 }

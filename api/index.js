@@ -20,6 +20,10 @@ const seedOffers = [
     title: 'Beach Relax Package',
     description: '4 nights near the coast with breakfast and airport pickup included.',
     state: 'Florida',
+    resortName: 'Azure Palm Resort',
+    highlights: 'Ocean-view suite, airport pickup, breakfast buffet, beach access',
+    imageUrl:
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
     durationDays: 5,
     price: 920,
     createdAt: nowIso(),
@@ -30,6 +34,10 @@ const seedOffers = [
     title: 'Mountain Adventure Week',
     description: 'Hiking, cabin stay, and guided local tours for active travelers.',
     state: 'Colorado',
+    resortName: 'Summit Pine Lodge',
+    highlights: 'Guided treks, alpine cabins, breakfast and dinner, shuttle service',
+    imageUrl:
+      'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1200&q=80',
     durationDays: 7,
     price: 1280,
     createdAt: nowIso(),
@@ -40,6 +48,10 @@ const seedOffers = [
     title: 'City Lights Weekend',
     description: '3-day city package with museum passes and central hotel stay.',
     state: 'New York',
+    resortName: 'Metropolitan Grand Hotel',
+    highlights: 'City center location, museum pass, rooftop lounge, late checkout',
+    imageUrl:
+      'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=1200&q=80',
     durationDays: 3,
     price: 670,
     createdAt: nowIso(),
@@ -97,10 +109,13 @@ const validateOfferInput = (body) => {
   const title = String(body.title || '').trim();
   const description = String(body.description || '').trim();
   const state = String(body.state || '').trim();
+  const resortName = String(body.resortName || '').trim();
+  const highlights = String(body.highlights || '').trim();
+  const imageUrl = String(body.imageUrl || '').trim();
   const durationDays = Number(body.durationDays);
   const price = Number(body.price);
 
-  if (!title || !description || !state) {
+  if (!title || !description || !state || !resortName || !imageUrl) {
     return { ok: false, message: 'Missing required offer fields' };
   }
 
@@ -118,6 +133,9 @@ const validateOfferInput = (body) => {
       title,
       description,
       state,
+      resortName,
+      highlights,
+      imageUrl,
       durationDays,
       price
     }
@@ -129,6 +147,9 @@ const toOffer = (row) => ({
   title: row.title,
   description: row.description,
   state: row.state,
+  resortName: row.resort_name || '',
+  highlights: row.highlights || '',
+  imageUrl: row.image_url || '',
   durationDays: Number(row.duration_days),
   price: Number(row.price),
   createdAt: new Date(row.created_at).toISOString(),
@@ -169,12 +190,19 @@ const ensureDbBootstrap = async () => {
           title TEXT NOT NULL,
           description TEXT NOT NULL,
           state TEXT NOT NULL,
+          resort_name TEXT NOT NULL DEFAULT '',
+          highlights TEXT NOT NULL DEFAULT '',
+          image_url TEXT NOT NULL DEFAULT '',
           duration_days INTEGER NOT NULL CHECK (duration_days > 0),
           price NUMERIC(10,2) NOT NULL CHECK (price > 0),
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `;
+
+      await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS resort_name TEXT NOT NULL DEFAULT ''`;
+      await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS highlights TEXT NOT NULL DEFAULT ''`;
+      await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT ''`;
 
       await sql`
         CREATE TABLE IF NOT EXISTS chat_threads (
@@ -201,12 +229,53 @@ const ensureDbBootstrap = async () => {
       `;
 
       await sql`
-        INSERT INTO offers (id, title, description, state, duration_days, price, created_at, updated_at)
+        INSERT INTO offers (id, title, description, state, resort_name, highlights, image_url, duration_days, price, created_at, updated_at)
         VALUES
-          ('seed-florida', 'Beach Relax Package', '4 nights near the coast with breakfast and airport pickup included.', 'Florida', 5, 920, NOW(), NOW()),
-          ('seed-colorado', 'Mountain Adventure Week', 'Hiking, cabin stay, and guided local tours for active travelers.', 'Colorado', 7, 1280, NOW(), NOW()),
-          ('seed-newyork', 'City Lights Weekend', '3-day city package with museum passes and central hotel stay.', 'New York', 3, 670, NOW(), NOW())
-        ON CONFLICT (id) DO NOTHING
+          (
+            'seed-florida',
+            'Beach Relax Package',
+            '4 nights near the coast with breakfast and airport pickup included.',
+            'Florida',
+            'Azure Palm Resort',
+            'Ocean-view suite, airport pickup, breakfast buffet, beach access',
+            'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
+            5,
+            920,
+            NOW(),
+            NOW()
+          ),
+          (
+            'seed-colorado',
+            'Mountain Adventure Week',
+            'Hiking, cabin stay, and guided local tours for active travelers.',
+            'Colorado',
+            'Summit Pine Lodge',
+            'Guided treks, alpine cabins, breakfast and dinner, shuttle service',
+            'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1200&q=80',
+            7,
+            1280,
+            NOW(),
+            NOW()
+          ),
+          (
+            'seed-newyork',
+            'City Lights Weekend',
+            '3-day city package with museum passes and central hotel stay.',
+            'New York',
+            'Metropolitan Grand Hotel',
+            'City center location, museum pass, rooftop lounge, late checkout',
+            'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=1200&q=80',
+            3,
+            670,
+            NOW(),
+            NOW()
+          )
+        ON CONFLICT (id) DO UPDATE
+        SET
+          resort_name = EXCLUDED.resort_name,
+          highlights = EXCLUDED.highlights,
+          image_url = EXCLUDED.image_url,
+          updated_at = NOW()
       `;
     })();
   }
@@ -262,12 +331,15 @@ const createOffer = async (payload) => {
   const stamp = nowIso();
   const offerId = createId();
   const inserted = await sql`
-    INSERT INTO offers (id, title, description, state, duration_days, price, created_at, updated_at)
+    INSERT INTO offers (id, title, description, state, resort_name, highlights, image_url, duration_days, price, created_at, updated_at)
     VALUES (
       ${offerId},
       ${payload.title},
       ${payload.description},
       ${payload.state},
+      ${payload.resortName},
+      ${payload.highlights},
+      ${payload.imageUrl},
       ${payload.durationDays},
       ${payload.price},
       ${stamp},
@@ -289,6 +361,9 @@ const updateOffer = async (offerId, payload) => {
     target.title = payload.title;
     target.description = payload.description;
     target.state = payload.state;
+    target.resortName = payload.resortName;
+    target.highlights = payload.highlights;
+    target.imageUrl = payload.imageUrl;
     target.durationDays = payload.durationDays;
     target.price = payload.price;
     target.updatedAt = nowIso();
@@ -302,6 +377,9 @@ const updateOffer = async (offerId, payload) => {
       title = ${payload.title},
       description = ${payload.description},
       state = ${payload.state},
+      resort_name = ${payload.resortName},
+      highlights = ${payload.highlights},
+      image_url = ${payload.imageUrl},
       duration_days = ${payload.durationDays},
       price = ${payload.price},
       updated_at = NOW()

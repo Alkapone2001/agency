@@ -36,6 +36,10 @@ const offers: Offer[] = [
     title: 'Beach Relax Package',
     description: '4 nights near the coast with breakfast and airport pickup included.',
     state: 'Florida',
+    resortName: 'Azure Palm Resort',
+    highlights: 'Ocean-view suite, airport pickup, breakfast buffet, beach access',
+    imageUrl:
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
     durationDays: 5,
     price: 920,
     createdAt: nowIso(),
@@ -46,6 +50,10 @@ const offers: Offer[] = [
     title: 'Mountain Adventure Week',
     description: 'Hiking, cabin stay, and guided local tours for active travelers.',
     state: 'Colorado',
+    resortName: 'Summit Pine Lodge',
+    highlights: 'Guided treks, alpine cabins, breakfast and dinner, shuttle service',
+    imageUrl:
+      'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1200&q=80',
     durationDays: 7,
     price: 1280,
     createdAt: nowIso(),
@@ -56,6 +64,10 @@ const offers: Offer[] = [
     title: 'City Lights Weekend',
     description: '3-day city package with museum passes and central hotel stay.',
     state: 'New York',
+    resortName: 'Metropolitan Grand Hotel',
+    highlights: 'City center location, museum pass, rooftop lounge, late checkout',
+    imageUrl:
+      'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=1200&q=80',
     durationDays: 3,
     price: 670,
     createdAt: nowIso(),
@@ -77,7 +89,7 @@ const getOfferOrThrow = (offerId: string) => {
 };
 
 const assertOfferInput = (body: OfferInput) => {
-  if (!body.title || !body.description || !body.state) {
+  if (!body.title || !body.description || !body.state || !body.resortName || !body.imageUrl) {
     throw new Error('Missing required offer fields');
   }
 
@@ -132,6 +144,9 @@ app.post<{ Body: OfferInput }>('/api/admin/offers', async (request, reply) => {
     title: request.body.title.trim(),
     description: request.body.description.trim(),
     state: request.body.state.trim(),
+    resortName: request.body.resortName.trim(),
+    highlights: request.body.highlights.trim(),
+    imageUrl: request.body.imageUrl.trim(),
     durationDays: request.body.durationDays,
     price: request.body.price,
     createdAt: timestamp,
@@ -163,6 +178,9 @@ app.put<{ Params: { id: string }; Body: OfferInput }>('/api/admin/offers/:id', a
   target.title = request.body.title.trim();
   target.description = request.body.description.trim();
   target.state = request.body.state.trim();
+  target.resortName = request.body.resortName.trim();
+  target.highlights = request.body.highlights.trim();
+  target.imageUrl = request.body.imageUrl.trim();
   target.durationDays = request.body.durationDays;
   target.price = request.body.price;
   target.updatedAt = nowIso();

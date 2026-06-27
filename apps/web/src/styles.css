@@ -364,6 +364,15 @@ textarea {
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
+.offer-card[role='button'] {
+  cursor: pointer;
+}
+
+.offer-card[role='button']:focus-visible {
+  outline: 3px solid rgba(15, 111, 255, 0.3);
+  outline-offset: 2px;
+}
+
 .offer-card:hover,
 .offer:hover {
   transform: translateY(-1px);
@@ -379,6 +388,20 @@ textarea {
 .offer-card.compact,
 .offer.compact {
   padding: 0.68rem;
+}
+
+.offer-image {
+  width: 100%;
+  height: 185px;
+  object-fit: cover;
+  border-radius: 11px;
+  border: 1px solid #d7e1f2;
+  margin-bottom: 0.62rem;
+  background: #eef3ff;
+}
+
+.offer-image.compact {
+  height: 120px;
 }
 
 .offer-top {
@@ -402,6 +425,18 @@ textarea {
   margin-top: 0.48rem;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.offer-subtitle {
+  margin-top: 0.28rem;
+  color: #305286;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.offer-highlights {
+  margin-top: 0.4rem;
+  font-size: 0.88rem;
 }
 
 .offer-top span,
@@ -496,6 +531,16 @@ button:disabled {
   padding-left: 1rem;
   display: grid;
   gap: 0.24rem;
+}
+
+.selected-offer-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #d7e1f2;
+  margin-bottom: 0.45rem;
+  background: #eef3ff;
 }
 
 .messenger-panel {
