@@ -481,7 +481,7 @@ function App() {
         <div className="main-nav">
           <div className="logo-box">
             <span className="logo-dot" />
-            <strong>Atlas Agency</strong>
+            <strong>Orchidea</strong>
           </div>
           <div className="main-links">
             <a href="#home">Home</a>
@@ -511,7 +511,7 @@ function App() {
       <section className="hero-grid" id="home">
         <div className="hero-left">
           <p className="hero-kicker">Modern Travel Booking Operations</p>
-          <h1>{agency?.name ?? 'Atlas Escape Agency'}</h1>
+          <h1>{agency?.name ?? 'Orchidea'}</h1>
           <p className="hero-tag">{agency?.tagline}</p>
           <p className="hero-text">{agency?.about}</p>
           <div className="hero-cta-row">

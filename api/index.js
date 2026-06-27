@@ -4,7 +4,7 @@ const nowIso = () => new Date().toISOString();
 const createId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 const agency = {
-  name: 'Atlas Escape Agency',
+  name: 'Orchidea',
   tagline: 'Custom vacation journeys, managed by people who care.',
   about:
     'We curate practical and memorable vacation offers for families, couples, and solo travelers. Compare by state, duration, and value, then talk directly with our team before you book.',
