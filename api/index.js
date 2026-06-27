@@ -11,8 +11,49 @@ const agency = {
   heroCta: 'Find your next state getaway'
 };
 
-let bootstrapPromise;
 const adminKey = process.env.ADMIN_DASHBOARD_KEY || 'admin123';
+const hasPostgresConfig = Boolean(process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL);
+
+const seedOffers = [
+  {
+    id: 'seed-florida',
+    title: 'Beach Relax Package',
+    description: '4 nights near the coast with breakfast and airport pickup included.',
+    state: 'Florida',
+    durationDays: 5,
+    price: 920,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  },
+  {
+    id: 'seed-colorado',
+    title: 'Mountain Adventure Week',
+    description: 'Hiking, cabin stay, and guided local tours for active travelers.',
+    state: 'Colorado',
+    durationDays: 7,
+    price: 1280,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  },
+  {
+    id: 'seed-newyork',
+    title: 'City Lights Weekend',
+    description: '3-day city package with museum passes and central hotel stay.',
+    state: 'New York',
+    durationDays: 3,
+    price: 670,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  }
+];
+
+let bootstrapPromise;
+let useMemoryFallback = !hasPostgresConfig;
+
+const memoryStore = {
+  offers: [...seedOffers],
+  threads: []
+};
 
 const sendJson = (res, statusCode, data) => {
   res.status(statusCode).json(data);
@@ -21,7 +62,7 @@ const sendJson = (res, statusCode, data) => {
 const setCors = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-admin-key');
 };
 
 const parseBody = (req) => {
@@ -51,6 +92,37 @@ const isAdminAuthorized = (req) => {
 };
 
 const threadIdFor = (offerId, clientId) => `${offerId}:${clientId}`;
+
+const validateOfferInput = (body) => {
+  const title = String(body.title || '').trim();
+  const description = String(body.description || '').trim();
+  const state = String(body.state || '').trim();
+  const durationDays = Number(body.durationDays);
+  const price = Number(body.price);
+
+  if (!title || !description || !state) {
+    return { ok: false, message: 'Missing required offer fields' };
+  }
+
+  if (!Number.isFinite(durationDays) || durationDays <= 0) {
+    return { ok: false, message: 'Duration must be a positive number' };
+  }
+
+  if (!Number.isFinite(price) || price <= 0) {
+    return { ok: false, message: 'Price must be a positive number' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      title,
+      description,
+      state,
+      durationDays,
+      price
+    }
+  };
+};
 
 const toOffer = (row) => ({
   id: row.id,
@@ -84,7 +156,11 @@ const toThread = (row, messages) => ({
   messages
 });
 
-const ensureBootstrap = async () => {
+const ensureDbBootstrap = async () => {
+  if (useMemoryFallback) {
+    return;
+  }
+
   if (!bootstrapPromise) {
     bootstrapPromise = (async () => {
       await sql`
@@ -138,12 +214,133 @@ const ensureBootstrap = async () => {
   await bootstrapPromise;
 };
 
+const listOffers = async (state) => {
+  if (useMemoryFallback) {
+    const normalized = state.trim().toLowerCase();
+    const source = normalized
+      ? memoryStore.offers.filter((offer) => offer.state.toLowerCase() === normalized)
+      : memoryStore.offers;
+    return [...source].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  const queryResult = state
+    ? await sql`
+        SELECT * FROM offers
+        WHERE LOWER(state) = ${state}
+        ORDER BY updated_at DESC
+      `
+    : await sql`
+        SELECT * FROM offers
+        ORDER BY updated_at DESC
+      `;
+
+  return queryResult.rows.map(toOffer);
+};
+
 const getOfferById = async (offerId) => {
+  if (useMemoryFallback) {
+    return memoryStore.offers.find((offer) => offer.id === offerId) || null;
+  }
+
   const { rows } = await sql`SELECT * FROM offers WHERE id = ${offerId} LIMIT 1`;
   return rows[0] ? toOffer(rows[0]) : null;
 };
 
+const createOffer = async (payload) => {
+  if (useMemoryFallback) {
+    const stamp = nowIso();
+    const created = {
+      id: createId(),
+      ...payload,
+      createdAt: stamp,
+      updatedAt: stamp
+    };
+    memoryStore.offers.unshift(created);
+    return created;
+  }
+
+  const stamp = nowIso();
+  const offerId = createId();
+  const inserted = await sql`
+    INSERT INTO offers (id, title, description, state, duration_days, price, created_at, updated_at)
+    VALUES (
+      ${offerId},
+      ${payload.title},
+      ${payload.description},
+      ${payload.state},
+      ${payload.durationDays},
+      ${payload.price},
+      ${stamp},
+      ${stamp}
+    )
+    RETURNING *
+  `;
+
+  return toOffer(inserted.rows[0]);
+};
+
+const updateOffer = async (offerId, payload) => {
+  if (useMemoryFallback) {
+    const target = memoryStore.offers.find((offer) => offer.id === offerId);
+    if (!target) {
+      return null;
+    }
+
+    target.title = payload.title;
+    target.description = payload.description;
+    target.state = payload.state;
+    target.durationDays = payload.durationDays;
+    target.price = payload.price;
+    target.updatedAt = nowIso();
+
+    return target;
+  }
+
+  const updated = await sql`
+    UPDATE offers
+    SET
+      title = ${payload.title},
+      description = ${payload.description},
+      state = ${payload.state},
+      duration_days = ${payload.durationDays},
+      price = ${payload.price},
+      updated_at = NOW()
+    WHERE id = ${offerId}
+    RETURNING *
+  `;
+
+  return updated.rows[0] ? toOffer(updated.rows[0]) : null;
+};
+
+const removeOffer = async (offerId) => {
+  if (useMemoryFallback) {
+    const index = memoryStore.offers.findIndex((offer) => offer.id === offerId);
+    if (index < 0) {
+      return false;
+    }
+
+    memoryStore.offers.splice(index, 1);
+    memoryStore.threads = memoryStore.threads.filter((thread) => thread.offerId !== offerId);
+    return true;
+  }
+
+  const deleted = await sql`DELETE FROM offers WHERE id = ${offerId} RETURNING id`;
+  return deleted.rows.length > 0;
+};
+
 const getThreadById = async (threadId) => {
+  if (useMemoryFallback) {
+    const thread = memoryStore.threads.find((item) => item.id === threadId);
+    if (!thread) {
+      return null;
+    }
+
+    return {
+      ...thread,
+      messages: [...thread.messages]
+    };
+  }
+
   const { rows: threadRows } = await sql`SELECT * FROM chat_threads WHERE id = ${threadId} LIMIT 1`;
   if (!threadRows[0]) {
     return null;
@@ -159,6 +356,10 @@ const getThreadById = async (threadId) => {
 };
 
 const getAllThreads = async () => {
+  if (useMemoryFallback) {
+    return [...memoryStore.threads].sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
+  }
+
   const { rows: threadRows } = await sql`
     SELECT * FROM chat_threads
     ORDER BY last_message_at DESC
@@ -185,35 +386,63 @@ const getAllThreads = async () => {
   return threadRows.map((row) => toThread(row, grouped.get(row.id) || []));
 };
 
-const validateOfferInput = (body) => {
-  const title = String(body.title || '').trim();
-  const description = String(body.description || '').trim();
-  const state = String(body.state || '').trim();
-  const durationDays = Number(body.durationDays);
-  const price = Number(body.price);
+const appendMessage = async (offer, clientId, clientName, sender, text) => {
+  const threadId = threadIdFor(offer.id, clientId);
+  const messageTime = nowIso();
 
-  if (!title || !description || !state) {
-    return { ok: false, message: 'Missing required offer fields' };
-  }
-
-  if (!Number.isFinite(durationDays) || durationDays <= 0) {
-    return { ok: false, message: 'Duration must be a positive number' };
-  }
-
-  if (!Number.isFinite(price) || price <= 0) {
-    return { ok: false, message: 'Price must be a positive number' };
-  }
-
-  return {
-    ok: true,
-    value: {
-      title,
-      description,
-      state,
-      durationDays,
-      price
+  if (useMemoryFallback) {
+    let thread = memoryStore.threads.find((item) => item.id === threadId);
+    if (!thread) {
+      thread = {
+        id: threadId,
+        offerId: offer.id,
+        offerTitle: offer.title,
+        clientId,
+        clientName,
+        lastMessageAt: messageTime,
+        messages: []
+      };
+      memoryStore.threads.unshift(thread);
     }
-  };
+
+    const message = {
+      id: createId(),
+      threadId,
+      offerId: offer.id,
+      clientId,
+      clientName,
+      sender,
+      text,
+      createdAt: messageTime
+    };
+
+    thread.messages.push(message);
+    thread.offerTitle = offer.title;
+    thread.clientName = clientName;
+    thread.lastMessageAt = messageTime;
+
+    return {
+      ...thread,
+      messages: [...thread.messages]
+    };
+  }
+
+  await sql`
+    INSERT INTO chat_threads (id, offer_id, offer_title, client_id, client_name, last_message_at)
+    VALUES (${threadId}, ${offer.id}, ${offer.title}, ${clientId}, ${clientName}, ${messageTime})
+    ON CONFLICT (id)
+    DO UPDATE SET
+      offer_title = EXCLUDED.offer_title,
+      client_name = EXCLUDED.client_name,
+      last_message_at = EXCLUDED.last_message_at
+  `;
+
+  await sql`
+    INSERT INTO chat_messages (id, thread_id, offer_id, client_id, client_name, sender, text, created_at)
+    VALUES (${createId()}, ${threadId}, ${offer.id}, ${clientId}, ${clientName}, ${sender}, ${text}, ${messageTime})
+  `;
+
+  return getThreadById(threadId);
 };
 
 module.exports = async (req, res) => {
@@ -224,17 +453,13 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const segments = getPathSegments(req.url);
-
   try {
-    await ensureBootstrap();
-  } catch (error) {
-    sendJson(res, 500, {
-      message: 'Database bootstrap failed',
-      detail: error instanceof Error ? error.message : 'Unknown database error'
-    });
-    return;
+    await ensureDbBootstrap();
+  } catch {
+    useMemoryFallback = true;
   }
+
+  const segments = getPathSegments(req.url);
 
   if (req.method === 'GET' && segments.length === 1 && segments[0] === 'agency') {
     sendJson(res, 200, agency);
@@ -247,24 +472,16 @@ module.exports = async (req, res) => {
       return;
     }
 
-    sendJson(res, 200, { ok: true });
+    sendJson(res, 200, {
+      ok: true,
+      storageMode: useMemoryFallback ? 'memory-fallback' : 'postgres'
+    });
     return;
   }
 
   if (req.method === 'GET' && segments.length === 1 && segments[0] === 'offers') {
     const state = String((req.query && req.query.state) || '').trim().toLowerCase();
-    const queryResult = state
-      ? await sql`
-          SELECT * FROM offers
-          WHERE LOWER(state) = ${state}
-          ORDER BY updated_at DESC
-        `
-      : await sql`
-          SELECT * FROM offers
-          ORDER BY updated_at DESC
-        `;
-
-    sendJson(res, 200, queryResult.rows.map(toOffer));
+    sendJson(res, 200, await listOffers(state));
     return;
   }
 
@@ -280,24 +497,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const stamp = nowIso();
-    const offerId = createId();
-    const inserted = await sql`
-      INSERT INTO offers (id, title, description, state, duration_days, price, created_at, updated_at)
-      VALUES (
-        ${offerId},
-        ${validation.value.title},
-        ${validation.value.description},
-        ${validation.value.state},
-        ${validation.value.durationDays},
-        ${validation.value.price},
-        ${stamp},
-        ${stamp}
-      )
-      RETURNING *
-    `;
-
-    sendJson(res, 201, toOffer(inserted.rows[0]));
+    sendJson(res, 201, await createOffer(validation.value));
     return;
   }
 
@@ -320,20 +520,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const updated = await sql`
-      UPDATE offers
-      SET
-        title = ${validation.value.title},
-        description = ${validation.value.description},
-        state = ${validation.value.state},
-        duration_days = ${validation.value.durationDays},
-        price = ${validation.value.price},
-        updated_at = NOW()
-      WHERE id = ${offerId}
-      RETURNING *
-    `;
-
-    sendJson(res, 200, toOffer(updated.rows[0]));
+    sendJson(res, 200, await updateOffer(offerId, validation.value));
     return;
   }
 
@@ -343,9 +530,8 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const offerId = segments[2];
-    const deleted = await sql`DELETE FROM offers WHERE id = ${offerId} RETURNING id`;
-    if (deleted.rows.length === 0) {
+    const removed = await removeOffer(segments[2]);
+    if (!removed) {
       sendJson(res, 404, { message: 'Offer not found' });
       return;
     }
@@ -378,8 +564,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const thread = await getThreadById(threadIdFor(offerId, clientId));
-    sendJson(res, 200, thread);
+    sendJson(res, 200, await getThreadById(threadIdFor(offerId, clientId)));
     return;
   }
 
@@ -412,25 +597,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const threadId = threadIdFor(offerId, clientId);
-    const messageTime = nowIso();
-
-    await sql`
-      INSERT INTO chat_threads (id, offer_id, offer_title, client_id, client_name, last_message_at)
-      VALUES (${threadId}, ${offerId}, ${offer.title}, ${clientId}, ${clientName}, ${messageTime})
-      ON CONFLICT (id)
-      DO UPDATE SET
-        offer_title = EXCLUDED.offer_title,
-        client_name = EXCLUDED.client_name,
-        last_message_at = EXCLUDED.last_message_at
-    `;
-
-    await sql`
-      INSERT INTO chat_messages (id, thread_id, offer_id, client_id, client_name, sender, text, created_at)
-      VALUES (${createId()}, ${threadId}, ${offerId}, ${clientId}, ${clientName}, ${sender}, ${text}, ${messageTime})
-    `;
-
-    sendJson(res, 200, await getThreadById(threadId));
+    sendJson(res, 200, await appendMessage(offer, clientId, clientName, sender, text));
     return;
   }
 
