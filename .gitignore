@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.local
+.env.*
+!.env.example
+!.env*.example
+coverage
+pnpm-lock.yaml
+.DS_Store
+.vscode/.DS_Store
+.vercel
+apps/web/dist
+apps/api/dist
+*.tsbuildinfo
