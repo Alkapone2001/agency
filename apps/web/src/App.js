@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 const apiUrl = import.meta.env.VITE_API_URL ?? '';
 const createClientId = () => `client-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 const getClientId = () => {
@@ -33,6 +33,12 @@ const initialOfferForm = {
     price: 400
 };
 const fallbackOfferImage = 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80';
+const quickClientPrompts = [
+    'Can you share full package details?',
+    'Is airport transfer included?',
+    'Can you suggest family-friendly options?',
+    'What is the cancellation policy?'
+];
 const initialPanel = window.location.pathname.startsWith('/admin') ? 'admin' : 'client';
 const readSeenMap = (key) => {
     try {
@@ -89,6 +95,7 @@ function App() {
     const [activeAdminThreadId, setActiveAdminThreadId] = useState('');
     const [adminReply, setAdminReply] = useState('');
     const [adminSeenByThread, setAdminSeenByThread] = useState(() => readSeenMap('agency-admin-seen-map'));
+    const clientMessagesEndRef = useRef(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
     const selectedOffer = useMemo(() => offers.find((offer) => offer.id === selectedOfferId) ?? null, [offers, selectedOfferId]);
@@ -228,6 +235,12 @@ function App() {
         setAdminSeenByThread(updated);
         saveSeenMap('agency-admin-seen-map', updated);
     }, [activeAdminThreadId]);
+    useEffect(() => {
+        if (!clientChatOpen) {
+            return;
+        }
+        clientMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, [clientChatOpen, clientThread?.messages.length]);
     const resetOfferForm = () => {
         setOfferForm(initialOfferForm);
         setEditingOfferId(null);
@@ -399,16 +412,15 @@ function App() {
                                             setSelectedOfferId(offer.id);
                                             setClientChatOpen(true);
                                         }
-                                    }, children: [_jsx("img", { className: "offer-image", src: offer.imageUrl || fallbackOfferImage, alt: `${offer.resortName} in ${offer.state}`, loading: "lazy" }), _jsxs("div", { className: "offer-top", children: [_jsx("h3", { children: offer.title }), _jsxs("span", { children: ["$", offer.price] })] }), _jsx("p", { className: "offer-subtitle", children: offer.resortName }), _jsx("p", { children: offer.description }), _jsx("p", { className: "offer-highlights", children: offer.highlights }), _jsxs("div", { className: "chips", children: [_jsx("span", { children: offer.state }), _jsxs("span", { children: [offer.durationDays, " days"] })] }), _jsxs("div", { className: "btn-row", children: [_jsx("button", { type: "button", onClick: (event) => {
-                                                        event.stopPropagation();
-                                                        setSelectedOfferId(offer.id);
-                                                        setClientChatOpen(true);
-                                                    }, children: "Chat This Offer" }), _jsx("button", { type: "button", className: "ghost", onClick: (event) => {
-                                                        event.stopPropagation();
-                                                        startEdit(offer);
-                                                    }, children: "Open Admin" })] })] }, offer.id))) })] }), _jsxs("article", { className: "selection-panel", children: [_jsx("h3", { children: "Selected Offer" }), selectedOffer ? (_jsxs(_Fragment, { children: [_jsx("img", { className: "selected-offer-image", src: selectedOffer.imageUrl || fallbackOfferImage, alt: `${selectedOffer.resortName} resort preview` }), _jsx("h4", { children: selectedOffer.title }), _jsx("p", { className: "offer-subtitle", children: selectedOffer.resortName }), _jsx("p", { children: selectedOffer.description }), _jsx("p", { className: "offer-highlights", children: selectedOffer.highlights }), _jsxs("ul", { children: [_jsxs("li", { children: ["State: ", selectedOffer.state] }), _jsxs("li", { children: ["Duration: ", selectedOffer.durationDays, " days"] }), _jsxs("li", { children: ["Price: $", selectedOffer.price] })] }), _jsx("button", { type: "button", onClick: () => setClientChatOpen(true), children: "Continue in Messenger" })] })) : (_jsx("p", { children: "Select an offer to preview details and begin chat." }))] }), _jsxs("article", { className: "messenger-panel", id: "messenger", children: [_jsxs("div", { className: "messenger-header", children: [_jsxs("div", { children: [_jsx("strong", { children: "Agency Messenger" }), _jsx("p", { children: selectedOffer
+                                    }, children: [_jsx("img", { className: "offer-image", src: offer.imageUrl || fallbackOfferImage, alt: `${offer.resortName} in ${offer.state}`, loading: "lazy" }), _jsxs("div", { className: "offer-top", children: [_jsx("h3", { children: offer.title }), _jsxs("span", { children: ["$", offer.price] })] }), _jsx("p", { className: "offer-subtitle", children: offer.resortName }), _jsx("p", { children: offer.description }), _jsx("p", { className: "offer-highlights", children: offer.highlights }), _jsxs("div", { className: "chips", children: [_jsx("span", { children: offer.state }), _jsxs("span", { children: [offer.durationDays, " days"] })] }), _jsx("div", { className: "btn-row", children: _jsx("button", { type: "button", onClick: (event) => {
+                                                    event.stopPropagation();
+                                                    setSelectedOfferId(offer.id);
+                                                    setClientChatOpen(true);
+                                                }, children: "Chat This Offer" }) })] }, offer.id))) })] }), _jsxs("article", { className: "messenger-panel", id: "messenger", children: [_jsxs("div", { className: "messenger-header", children: [_jsxs("div", { children: [_jsx("strong", { children: "Agency Messenger" }), _jsx("p", { children: selectedOffer
                                                     ? `Now discussing: ${selectedOffer.title}`
-                                                    : 'Select an offer to start chatting' })] }), _jsxs("button", { type: "button", className: "ghost", onClick: () => setClientChatOpen((value) => !value), children: [clientChatOpen ? 'Minimize' : 'Open', clientUnreadCount > 0 && _jsx("span", { className: "badge", children: clientUnreadCount })] })] }), clientChatOpen && (_jsxs(_Fragment, { children: [_jsx("div", { className: "messages", children: (clientThread?.messages ?? []).map((message) => (_jsxs("div", { className: message.sender === 'admin' ? 'message admin' : 'message client', children: [_jsx("p", { children: message.text }), _jsxs("small", { children: [message.sender === 'admin' ? 'Advisor' : clientName || 'You', " \u2022", ' ', new Date(message.createdAt).toLocaleTimeString()] })] }, message.id))) }), _jsxs("div", { className: "compose-row", children: [_jsx("input", { value: clientChatInput, onChange: (event) => setClientChatInput(event.target.value), placeholder: selectedOfferId ? 'Type your message...' : 'Select an offer first', disabled: !selectedOfferId, onKeyDown: (event) => {
+                                                    : 'Select an offer to start chatting' })] }), _jsxs("button", { type: "button", className: "ghost", onClick: () => setClientChatOpen((value) => !value), children: [clientChatOpen ? 'Minimize' : 'Open', clientUnreadCount > 0 && _jsx("span", { className: "badge", children: clientUnreadCount })] })] }), selectedOffer && (_jsxs("div", { className: "active-offer-banner", children: [_jsx("span", { children: selectedOffer.title }), _jsxs("small", { children: [selectedOffer.state, " \u2022 ", selectedOffer.durationDays, " days \u2022 $", selectedOffer.price] })] })), clientChatOpen && (_jsxs(_Fragment, { children: [_jsxs("div", { className: "messages", children: [!clientThread?.messages.length && (_jsx("div", { className: "chat-empty", children: "Choose an offer and send your first message. Our team replies here in real time." })), (clientThread?.messages ?? []).map((message) => (_jsxs("div", { className: message.sender === 'admin' ? 'message admin' : 'message client', children: [_jsx("p", { children: message.text }), _jsxs("small", { children: [message.sender === 'admin' ? 'Advisor' : clientName || 'You', " \u2022", ' ', new Date(message.createdAt).toLocaleTimeString()] })] }, message.id))), _jsx("div", { ref: clientMessagesEndRef })] }), _jsx("div", { className: "quick-row", children: quickClientPrompts.map((prompt) => (_jsx("button", { type: "button", className: "quick", onClick: () => {
+                                                setClientChatInput(prompt);
+                                            }, children: prompt }, prompt))) }), _jsxs("div", { className: "compose-row", children: [_jsx("input", { value: clientChatInput, onChange: (event) => setClientChatInput(event.target.value), placeholder: selectedOfferId ? 'Type your message...' : 'Select an offer first', disabled: !selectedOfferId, onKeyDown: (event) => {
                                                     if (event.key === 'Enter') {
                                                         event.preventDefault();
                                                         void sendClientMessage();
@@ -424,6 +436,6 @@ function App() {
                                                         event.preventDefault();
                                                         void sendAdminReply();
                                                     }
-                                                } }), _jsx("button", { type: "button", onClick: () => void sendAdminReply(), disabled: !activeAdminThread, children: "Send" })] })] })] })] }))] }));
+                                                } }), _jsx("button", { type: "button", onClick: () => void sendAdminReply(), disabled: !activeAdminThread, children: "Send" })] })] })] })] })), _jsx("footer", { className: "site-footer", id: "contact", children: _jsxs("div", { className: "footer-grid", children: [_jsxs("div", { children: [_jsx("h4", { children: "Orchidea" }), _jsx("p", { children: "Premium vacations, flights, and hotel coordination with direct advisor support." })] }), _jsxs("div", { children: [_jsx("h5", { children: "Contact" }), _jsx("p", { children: "Email: contact@orchidea-travel.com" }), _jsx("p", { children: "Phone: +1 (786) 555-0138" })] }), _jsxs("div", { children: [_jsx("h5", { children: "Office" }), _jsx("p", { children: "420 Ocean Drive, Miami, FL" }), _jsx("p", { children: "Mon - Sat: 09:00 - 19:00" })] })] }) })] }));
 }
 export default App;

@@ -148,6 +148,7 @@ a {
 .client-layout,
 .admin-layout,
 .admin-login-wrap,
+.site-footer,
 .error-banner,
 .error {
   width: 100%;
@@ -268,13 +269,12 @@ a {
 .client-layout {
   margin-top: 1rem;
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: 0.95rem;
   align-items: start;
 }
 
 .catalog-panel,
-.selection-panel,
 .messenger-panel,
 .admin-login-card,
 .admin-offers,
@@ -361,7 +361,7 @@ textarea {
   border-radius: 14px;
   background: #fff;
   padding: 0.8rem;
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .offer-card[role='button'] {
@@ -375,8 +375,9 @@ textarea {
 
 .offer-card:hover,
 .offer:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   border-color: #aac3f3;
+  box-shadow: 0 10px 22px rgba(42, 70, 119, 0.12);
 }
 
 .offer-card.selected,
@@ -506,47 +507,30 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.selection-panel {
-  min-height: 340px;
-}
-
-.selection-panel h3,
-.selection-panel h4,
-.selection-panel p,
-.selection-panel ul {
-  margin: 0;
-}
-
-.selection-panel p {
-  margin-top: 0.38rem;
-  color: var(--muted);
-}
-
-.selection-panel h4 {
-  margin-top: 0.52rem;
-}
-
-.selection-panel ul {
-  margin-top: 0.6rem;
-  padding-left: 1rem;
-  display: grid;
-  gap: 0.24rem;
-}
-
-.selected-offer-image {
-  width: 100%;
-  height: 180px;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid #d7e1f2;
-  margin-bottom: 0.45rem;
-  background: #eef3ff;
-}
-
 .messenger-panel {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto auto;
   gap: 0.62rem;
+  position: sticky;
+  top: 88px;
+}
+
+.active-offer-banner {
+  border: 1px solid #cfe0ff;
+  background: #edf4ff;
+  border-radius: 12px;
+  padding: 0.56rem 0.68rem;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.active-offer-banner span {
+  color: #22437b;
+  font-weight: 800;
+}
+
+.active-offer-banner small {
+  color: #4e648e;
 }
 
 .messenger-header {
@@ -578,6 +562,7 @@ button:disabled {
   padding: 0.7rem;
   display: grid;
   gap: 0.52rem;
+  align-content: start;
 }
 
 .message,
@@ -618,6 +603,35 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.5rem;
+}
+
+.chat-empty {
+  border: 1px dashed #bdd0f5;
+  color: #526488;
+  border-radius: 12px;
+  padding: 0.8rem;
+  font-size: 0.9rem;
+  background: #f5f9ff;
+}
+
+.quick-row {
+  display: flex;
+  gap: 0.46rem;
+  flex-wrap: wrap;
+}
+
+.quick {
+  border: 1px solid #c5d8fb;
+  border-radius: 999px;
+  background: #f6f9ff;
+  color: #2f4677;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.3rem 0.62rem;
+}
+
+.quick:hover {
+  background: #ebf3ff;
 }
 
 .badge {
@@ -744,13 +758,35 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.site-footer {
+  margin-top: 1.3rem;
+  padding-top: 1.1rem;
+  padding-bottom: 1.1rem;
+  border-top: 1px solid #d6e0f1;
+  background: rgba(242, 247, 255, 0.85);
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.95rem;
+}
+
+.footer-grid h4,
+.footer-grid h5,
+.footer-grid p {
+  margin: 0;
+}
+
+.footer-grid p {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 @media (max-width: 1280px) {
   .client-layout {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .selection-panel {
-    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
   }
 }
 
@@ -790,10 +826,15 @@ button:disabled {
   .client-layout,
   .admin-layout,
   .admin-login-wrap,
+  .site-footer,
   .error-banner,
   .error {
     padding-left: 0.78rem;
     padding-right: 0.78rem;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr;
   }
 
   .hero-left h1 {

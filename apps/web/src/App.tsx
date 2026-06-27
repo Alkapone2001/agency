@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgencyInfo, ChatThread, Offer, OfferInput } from '@agency/shared';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? '';
@@ -46,6 +46,13 @@ const initialOfferForm: OfferInput = {
 
 const fallbackOfferImage =
   'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80';
+
+const quickClientPrompts = [
+  'Can you share full package details?',
+  'Is airport transfer included?',
+  'Can you suggest family-friendly options?',
+  'What is the cancellation policy?'
+];
 
 const initialPanel: Panel = window.location.pathname.startsWith('/admin') ? 'admin' : 'client';
 
@@ -117,6 +124,7 @@ function App() {
   const [adminSeenByThread, setAdminSeenByThread] = useState<SeenMap>(() =>
     readSeenMap('agency-admin-seen-map')
   );
+  const clientMessagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -295,6 +303,14 @@ function App() {
     setAdminSeenByThread(updated);
     saveSeenMap('agency-admin-seen-map', updated);
   }, [activeAdminThreadId]);
+
+  useEffect(() => {
+    if (!clientChatOpen) {
+      return;
+    }
+
+    clientMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [clientChatOpen, clientThread?.messages.length]);
 
   const resetOfferForm = () => {
     setOfferForm(initialOfferForm);
@@ -638,47 +654,10 @@ function App() {
                     >
                       Chat This Offer
                     </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        startEdit(offer);
-                      }}
-                    >
-                      Open Admin
-                    </button>
                   </div>
                 </article>
               ))}
             </div>
-          </article>
-
-          <article className="selection-panel">
-            <h3>Selected Offer</h3>
-            {selectedOffer ? (
-              <>
-                <img
-                  className="selected-offer-image"
-                  src={selectedOffer.imageUrl || fallbackOfferImage}
-                  alt={`${selectedOffer.resortName} resort preview`}
-                />
-                <h4>{selectedOffer.title}</h4>
-                <p className="offer-subtitle">{selectedOffer.resortName}</p>
-                <p>{selectedOffer.description}</p>
-                <p className="offer-highlights">{selectedOffer.highlights}</p>
-                <ul>
-                  <li>State: {selectedOffer.state}</li>
-                  <li>Duration: {selectedOffer.durationDays} days</li>
-                  <li>Price: ${selectedOffer.price}</li>
-                </ul>
-                <button type="button" onClick={() => setClientChatOpen(true)}>
-                  Continue in Messenger
-                </button>
-              </>
-            ) : (
-              <p>Select an offer to preview details and begin chat.</p>
-            )}
           </article>
 
           <article className="messenger-panel" id="messenger">
@@ -701,9 +680,23 @@ function App() {
               </button>
             </div>
 
+            {selectedOffer && (
+              <div className="active-offer-banner">
+                <span>{selectedOffer.title}</span>
+                <small>
+                  {selectedOffer.state} • {selectedOffer.durationDays} days • ${selectedOffer.price}
+                </small>
+              </div>
+            )}
+
             {clientChatOpen && (
               <>
                 <div className="messages">
+                  {!clientThread?.messages.length && (
+                    <div className="chat-empty">
+                      Choose an offer and send your first message. Our team replies here in real time.
+                    </div>
+                  )}
                   {(clientThread?.messages ?? []).map((message) => (
                     <div
                       key={message.id}
@@ -715,6 +708,21 @@ function App() {
                         {new Date(message.createdAt).toLocaleTimeString()}
                       </small>
                     </div>
+                  ))}
+                  <div ref={clientMessagesEndRef} />
+                </div>
+                <div className="quick-row">
+                  {quickClientPrompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      className="quick"
+                      onClick={() => {
+                        setClientChatInput(prompt);
+                      }}
+                    >
+                      {prompt}
+                    </button>
                   ))}
                 </div>
                 <div className="compose-row">
@@ -934,6 +942,25 @@ function App() {
           </article>
         </section>
       )}
+
+      <footer className="site-footer" id="contact">
+        <div className="footer-grid">
+          <div>
+            <h4>Orchidea</h4>
+            <p>Premium vacations, flights, and hotel coordination with direct advisor support.</p>
+          </div>
+          <div>
+            <h5>Contact</h5>
+            <p>Email: contact@orchidea-travel.com</p>
+            <p>Phone: +1 (786) 555-0138</p>
+          </div>
+          <div>
+            <h5>Office</h5>
+            <p>420 Ocean Drive, Miami, FL</p>
+            <p>Mon - Sat: 09:00 - 19:00</p>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
